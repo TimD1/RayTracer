@@ -1,0 +1,5 @@
+testvec*
+*.o
+raytracer
+*.bmp
+cversion*
