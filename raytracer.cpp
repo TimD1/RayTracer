@@ -86,6 +86,42 @@ void save_bmp(string filename, int w, int h, int dpi, Pixel *data)
 
 
 
+int closest_obj_idx(const vector<double> & intersections)
+{	//return the index of the closest intersection
+	int idx_min = -1;
+
+	//prevent extra calculations (really should do outside of function call)
+	if(intersections.size() == 0) { return -1; }
+	else if(intersections.size() == 1) { return (intersections[0] > 0) ? 0 : -1; }
+	else
+	{
+		//fix this inefficient programming later
+		double max = -1;
+		for(int i = 0; i < intersections.size(); i++)
+		{
+			if(intersections[i] > max) max = intersections[i];
+		}
+		//starting from max value, find minimum positive value...     why?
+		if(max > 0)
+		{
+			for(int i = 0; i < intersections.size(); i++)
+			{
+				if(intersections[i] > 0 && intersections[i] <= max)
+				{
+					max = intersections[i];
+					idx_min = i;
+				}
+			}
+			return idx_min;
+		}
+		else return -1;
+	}
+}
+
+
+
+
+
 int main()
 {
 	cout << "Rendering..." << endl;
@@ -94,6 +130,7 @@ int main()
 	int dpi = 72;
 	int width = 640;
 	int height = 480;
+	double aspectratio = static_cast<double>(width)/static_cast<double>(height);
 	int num_pixels = width*height;
 	Pixel pixels[num_pixels];
 
@@ -125,15 +162,58 @@ int main()
 	Vect light_position(-7, 10, -10);
 	Light light_source(light_position, white_light);
 
-	//create sphere
+	//create objects in scene
 	Sphere sphere(origin, 1, green);
-
-	//create plane
 	Plane plane(Y, -1, red);
+
+	vector<Object*> scene_objects;
+	scene_objects.push_back(dynamic_cast<Object*>(&sphere));
+	scene_objects.push_back(dynamic_cast<Object*>(&plane));
+
+
+	double xamt, yamt; // values slightly to side of camera
+
 	for(int x = 0; x < width; x++)
 	{
 		for(int y = 0; y < height; y++)
 		{
+			//start with no anti-aliasing
+
+			//set distances so a ray will go through each pixel
+			if(width > height) //wide rectangular image 
+			{
+				xamt = ((x+0.5) / width) * aspectratio - 
+					((width - height) / static_cast<double>(height)) / 2;
+				yamt = (height-y + 0.5) / height;
+			}
+			else if (height > width) //tall rectangular image
+			{
+				xamt = (x+0.5) / width;
+				yamt = (((height - y) + 0.5) / height) / aspectratio - 
+					((height - width) / static_cast<double>(width)) / 2;
+			}
+			else //square image
+			{
+				xamt = (x + 0.5) / width;
+				yamt = (height - y +0.5) / height;
+			}
+
+			//create a ray through each point
+			Vect cam_ray_start = camera.position();
+			Vect cam_ray_dir = cam_dir + (cam_right*(xamt-0.5) 
+								+ (cam_down*(yamt - 0.5))).normalize();
+			Ray cam_ray(cam_ray_start, cam_ray_dir);
+			
+
+			vector<double> intersections;
+			for(int i = 0; i < scene_objects.size(); i++)
+			{
+				intersections.push_back(scene_objects.at(i)->find_intersection(cam_ray));
+			}
+
+			//determine which intersected object is closest to the camera
+			int idx_closest = closest_obj_idx(intersections);
+
 			// determine the color of each pixel
 			int idx = y * width + x;
 			

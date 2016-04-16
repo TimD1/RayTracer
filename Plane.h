@@ -39,7 +39,7 @@ double Plane::find_intersection(const Ray & ray)
 
 	// add position vector for where the ray starts
 	// the result is a vector of the distance from ray to plane
-	Vect plane_to_ray( plane_to_origin + ray.origin() );
+	Vect plane_to_ray( plane_to_origin + ray.start() );
 
 	// dist away relative to plane's orientation
 	double dist_away = -(normal_ * plane_to_ray);
