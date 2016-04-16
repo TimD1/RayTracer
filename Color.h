@@ -23,5 +23,4 @@ private:
 	double red_, green_, blue_, special_;
 };
 
-
 #endif

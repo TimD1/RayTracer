@@ -12,8 +12,8 @@ public:
 	double x() const { return x_; }
 	double y() const { return y_; }
 	double z() const { return z_; }
+	
 	double magnitude() const { return std::sqrt(x_*x_ + y_*y_ + z_*z_); }
-
 	Vect normalize() const;
 	Vect invert() const { return Vect(-x_, -y_, -z_); }
 

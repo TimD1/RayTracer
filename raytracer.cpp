@@ -14,6 +14,9 @@
 #include "Camera.h"
 #include "Color.h"
 #include "Light.h"
+#include "Sphere.h"
+#include "Object.h"
+#include "Plane.h"
 
 using namespace std;
 
@@ -81,6 +84,8 @@ void save_bmp(string filename, int w, int h, int dpi, Pixel *data)
 	}
 }
 
+
+
 int main()
 {
 	cout << "Rendering..." << endl;
@@ -96,6 +101,7 @@ int main()
 	Vect X(1,0,0);
 	Vect Y(0,1,0);
 	Vect Z(0,0,1);
+	Vect origin(0,0,0);
 
 	//set direction of camera
 	Vect cam_pos(3,1.5,-4);
@@ -113,11 +119,17 @@ int main()
 	Color green(0.5, 1, 0.5, 0.3);
 	Color gray(0.5, 0.5, 0.5, 0);
 	Color black(0, 0, 0, 0);
+	Color red(1, 0, 0, 0);
 
 	//create light source
 	Vect light_position(-7, 10, -10);
 	Light light_source(light_position, white_light);
 
+	//create sphere
+	Sphere sphere(origin, 1, green);
+
+	//create plane
+	Plane plane(Y, -1, red);
 	for(int x = 0; x < width; x++)
 	{
 		for(int y = 0; y < height; y++)

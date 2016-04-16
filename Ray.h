@@ -1,6 +1,5 @@
 #ifndef _RAY_H_
 #define _RAY_H_
-#include <cmath>
 
 #include "Vect.h"
 

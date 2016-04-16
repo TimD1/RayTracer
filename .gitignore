@@ -3,3 +3,4 @@ testvec*
 raytracer
 *.bmp
 cversion*
+makefile
