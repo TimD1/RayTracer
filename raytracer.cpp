@@ -228,7 +228,7 @@ int main()
 	light_sources.push_back(dynamic_cast<Source*>(&light_source));
 
 	//create objects in scene
-	Sphere sphere(origin, 2, green);
+	Sphere sphere(origin, 1, green);
 	Plane plane(Z, -1, red);
 
 	vector<Object*> scene_objects;
@@ -270,19 +270,22 @@ int main()
 			Ray cam_ray(cam_ray_start, cam_ray_dir);
 			
 
+			//closest intersection pt for each object
 			vector<double> intersections;
 			for(int i = 0; i < scene_objects.size(); i++)
 			{
 				intersections.push_back(scene_objects[i]->find_intersection(cam_ray));
+				//cout << "Object #" << i << ": " << scene_objects[i]->find_intersection(cam_ray) << endl;
 			}
-
+			//cout << endl;
+			
 			//determine which intersected object is closest to the camera
 			int idx_closest = closest_obj_idx(intersections);
-
+			
 			// determine the color of each pixel
 			int idx = y * width + x;
 			
-			if(idx_closest == -1)
+			if(idx_closest < 0)
 			{
 				pixels[idx].r = 0;
 				pixels[idx].g = 0;

@@ -1,6 +1,8 @@
 #ifndef _SPHERE_H_
 #define _SPHERE_H_
 
+#include <cmath>
+
 #include "Color.h"
 #include "Vect.h"
 #include "Object.h"
@@ -12,10 +14,10 @@ public:
 	Sphere(Vect center0, double r, Color color0) 
 		: center_(center0), radius_(r), color_(color0) {}
 
-	Vect center() const { return center_; }
-	double radius() const { return radius_; }
+	virtual Vect center() const { return center_; }
+	virtual double radius() const { return radius_; }
 	virtual Color color() const { return color_; }
-	virtual double find_intersection(Ray ray); //why virtual?
+	virtual double find_intersection(const Ray & ray);
 	virtual Vect normal(Vect pt) { return (pt - center_).normalize(); }//divide by radius faster?
 
 private:
@@ -31,7 +33,7 @@ Sphere::Sphere()
 	color_ = Color(0.5,0.5,0.5,0);
 }
 
-double Sphere::find_intersection(Ray ray)
+double Sphere::find_intersection(const Ray & ray)
 {
 	double b = 	(2*(ray.start().x() - center_.x()) * ray.direction().x()) + 
 				(2*(ray.start().y() - center_.y()) * ray.direction().y()) + 
