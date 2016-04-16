@@ -1,17 +1,18 @@
 #ifndef _LIGHT_H_
 #define _LIGHT_H_
 
+#include "Source.h"
 #include "Color.h"
 #include "Vect.h"
 
-class Light
+class Light : public Source
 {
 public:
 	Light();
 	Light(Vect vect0, Color color0) : position_(vect0), color_(color0) {}
 
-	Vect vect() const { return position_; }
-	Color color() const { return color_; }
+	virtual Vect light_pos() const { return position_; }
+	virtual Color color() const { return color_; }
 
 private:
 	Vect position_;

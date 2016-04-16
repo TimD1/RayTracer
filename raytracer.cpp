@@ -1,13 +1,8 @@
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <string>
 #include <vector>
 #include <cmath>
-#include <limits>
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
 
 #include "Vect.h"
 #include "Ray.h"
@@ -17,8 +12,11 @@
 #include "Sphere.h"
 #include "Object.h"
 #include "Plane.h"
+#include "Source.h"
 
 using namespace std;
+
+
 
 class Pixel
 {
@@ -30,6 +28,8 @@ public:
 	int g;
 	int b;
 };
+
+
 
 void save_bmp(string filename, int w, int h, int dpi, Pixel *data)
 {
@@ -77,9 +77,9 @@ void save_bmp(string filename, int w, int h, int dpi, Pixel *data)
 	for(int i = 0; i < num_pix; i++)
 	{
 		// original colors are 0-1, must be converted to hex
-		unsigned char color[3] = { 	static_cast<unsigned char>(data[i].r*255), 
+		unsigned char color[3] = { 	static_cast<unsigned char>(data[i].b*255), 
 									static_cast<unsigned char>(data[i].g*255), 
-									static_cast<unsigned char>(data[i].b*255)};
+									static_cast<unsigned char>(data[i].r*255)};
 		for(int i = 0; i < 3; i++) ofs_picture << color[i];
 	}
 }
@@ -87,39 +87,100 @@ void save_bmp(string filename, int w, int h, int dpi, Pixel *data)
 
 
 int closest_obj_idx(const vector<double> & intersections)
-{	//return the index of the closest intersection
-	int idx_min = -1;
-
-	//prevent extra calculations (really should do outside of function call)
+{	
+	// do most common base cases first to avoid extra operations
 	if(intersections.size() == 0) { return -1; }
 	else if(intersections.size() == 1) { return (intersections[0] > 0) ? 0 : -1; }
+	
 	else
 	{
-		//fix this inefficient programming later
-		double max = -1;
+		int idx_min = -1;
+		double closest_valid = 10e10;
+		
 		for(int i = 0; i < intersections.size(); i++)
 		{
-			if(intersections[i] > max) max = intersections[i];
-		}
-		//starting from max value, find minimum positive value...     why?
-		if(max > 0)
-		{
-			for(int i = 0; i < intersections.size(); i++)
+			if(intersections[i] > 0 && intersections[i] < closest_valid)
 			{
-				if(intersections[i] > 0 && intersections[i] <= max)
-				{
-					max = intersections[i];
-					idx_min = i;
-				}
+				closest_valid = intersections[i];
+				idx_min = i;
 			}
-			return idx_min;
 		}
-		else return -1;
+		if(closest_valid == 10e10) return -1; //no valid intersections found
+		else return idx_min;
 	}
 }
 
 
 
+Color color_at(	const Vect & int_pos, const Vect & int_ray_dir, 
+				const vector<Object*> & scene_objects, int idx_closest, 
+				const vector<Source*> & light_sources, double accuracy, 
+				double ambient_light)
+{
+	Color closest_obj_color = scene_objects[idx_closest]->color();
+	Vect closest_obj_normal = scene_objects[idx_closest]->normal(int_pos);
+	Color final_color = closest_obj_color * ambient_light;
+
+	for(int light_idx = 0; light_idx < light_sources.size(); light_idx++)
+	{
+		Vect light_dir = (light_sources[light_idx]->light_pos() - int_pos).normalize();
+
+		float cos_angle = closest_obj_normal * light_dir;
+		if(cos_angle > 0)
+		{
+			//test for shadows
+			bool shadowed = false;
+			//removed normalization from dist_to_light
+			Vect dist_to_light = light_sources[light_idx]->light_pos() - int_pos;
+			float mag_dist_to_light = dist_to_light.magnitude();
+			
+			Ray shadow_ray(int_pos, 
+					(light_sources[light_idx]->light_pos() - int_pos).normalize());
+
+			
+			vector<double> secondary_ints;
+			for(int obj_idx = 0; obj_idx < scene_objects.size() && !shadowed; obj_idx++)
+			{
+				secondary_ints.push_back(scene_objects[obj_idx]
+						->find_intersection(shadow_ray));
+			}
+			
+			for(int i = 0; i < secondary_ints.size(); i++)
+			{
+				if(secondary_ints[i] > accuracy)
+				{
+					if(secondary_ints[i] <= mag_dist_to_light) shadowed = true;
+					break;
+				}
+			}
+			if(!shadowed)
+			{
+				final_color = final_color + (closest_obj_color * (light_sources[light_idx]->color() * cos_angle));
+				if(closest_obj_color.s() > 0 && closest_obj_color.s() <= 1)
+				{
+					//this range of values refers to shininess
+					// fix this mess later
+					double dot1 = closest_obj_normal * (int_ray_dir.invert());
+					Vect scalar1 = closest_obj_normal * dot1;
+					Vect add1 = scalar1 + int_ray_dir;
+					Vect scalar2 = add1 * 2;
+					Vect add2 = int_ray_dir.invert() + scalar2;
+					Vect refl_dir = add2.normalize();
+
+					double specular = refl_dir * light_dir;
+					if(specular > 0)
+					{
+						specular = pow(specular, 10);
+						final_color = final_color + 
+							(light_sources[light_idx]->color() * 
+							 (specular * closest_obj_color.s()));
+					}
+				}	
+			}
+		}
+	}
+	return final_color.clip();
+}
 
 
 int main()
@@ -131,6 +192,8 @@ int main()
 	int width = 640;
 	int height = 480;
 	double aspectratio = static_cast<double>(width)/static_cast<double>(height);
+	double ambient_light = 0.2;
+	double accuracy = 0.000001;
 	int num_pixels = width*height;
 	Pixel pixels[num_pixels];
 
@@ -141,37 +204,39 @@ int main()
 	Vect origin(0,0,0);
 
 	//set direction of camera
-	Vect cam_pos(3,1.5,-4);
-	Vect point(0, 0, 0);
-	Vect cam_dir(point.x()-cam_pos.x(), point.y()-cam_pos.y(), point.z()-cam_pos.z());
+	Vect cam_pos(0,-8, 2);
+	Vect lookat(0, 0, 0);
+	Vect cam_dir(lookat.x()-cam_pos.x(), lookat.y()-cam_pos.y(), lookat.z()-cam_pos.z());
 	cam_dir = cam_dir.normalize();
 	
 	//set orientation of camera, create object
-	Vect cam_right = (Y^cam_dir).normalize();
-	Vect cam_down = (cam_right^cam_dir);
+	Vect cam_right = (cam_dir^Z).normalize(); //switched order
+	Vect cam_down = (cam_dir^cam_right);
 	Camera camera(cam_pos, cam_dir, cam_right, cam_down);
 
 	//create useful colors
 	Color white_light(1, 1, 1, 0);
-	Color green(0.5, 1, 0.5, 0.3);
+	Color green(0, 1, 0, 0.3);
 	Color gray(0.5, 0.5, 0.5, 0);
 	Color black(0, 0, 0, 0);
 	Color red(1, 0, 0, 0);
 
 	//create light source
-	Vect light_position(-7, 10, -10);
+	Vect light_position(5, 5, 10);
 	Light light_source(light_position, white_light);
+	vector<Source*> light_sources;
+	light_sources.push_back(dynamic_cast<Source*>(&light_source));
 
 	//create objects in scene
-	Sphere sphere(origin, 1, green);
-	Plane plane(Y, -1, red);
+	Sphere sphere(origin, 2, green);
+	Plane plane(Z, -1, red);
 
 	vector<Object*> scene_objects;
 	scene_objects.push_back(dynamic_cast<Object*>(&sphere));
 	scene_objects.push_back(dynamic_cast<Object*>(&plane));
 
 
-	double xamt, yamt; // values slightly to side of camera
+	double xamt, yamt;
 
 	for(int x = 0; x < width; x++)
 	{
@@ -200,15 +265,15 @@ int main()
 
 			//create a ray through each point
 			Vect cam_ray_start = camera.position();
-			Vect cam_ray_dir = cam_dir + (cam_right*(xamt-0.5) 
-								+ (cam_down*(yamt - 0.5))).normalize();
+			Vect cam_ray_dir = (cam_dir + (cam_right*(xamt-0.5) 
+								+ (cam_down*(yamt - 0.5)))).normalize();
 			Ray cam_ray(cam_ray_start, cam_ray_dir);
 			
 
 			vector<double> intersections;
 			for(int i = 0; i < scene_objects.size(); i++)
 			{
-				intersections.push_back(scene_objects.at(i)->find_intersection(cam_ray));
+				intersections.push_back(scene_objects[i]->find_intersection(cam_ray));
 			}
 
 			//determine which intersected object is closest to the camera
@@ -217,9 +282,36 @@ int main()
 			// determine the color of each pixel
 			int idx = y * width + x;
 			
-			pixels[idx].r = 0.5;
-			pixels[idx].g = 1;
-			pixels[idx].b = 0.5;
+			if(idx_closest == -1)
+			{
+				pixels[idx].r = 0;
+				pixels[idx].g = 0;
+				pixels[idx].b = 0;
+			}
+			else
+			{
+				
+				Color this_color = scene_objects[idx_closest]->color();
+				pixels[idx].r = this_color.r();
+				pixels[idx].g = this_color.g();
+				pixels[idx].b = this_color.b();
+
+				/*
+				if(intersections[idx_closest] > accuracy)
+				{
+					//determine position/direction at intersection
+					Vect int_pos = cam_ray_start + 
+						(cam_ray_dir * intersections[idx_closest]);
+					Vect int_ray_dir = cam_ray_dir; //not dealing with reflections yet
+					Color int_color = color_at(int_pos, int_ray_dir, scene_objects,
+						idx_closest, light_sources, accuracy, ambient_light);
+
+					pixels[idx].r = int_color.r();
+					pixels[idx].g = int_color.g();
+					pixels[idx].b = int_color.b();
+				}
+				*/
+			}
 		}
 	}
 

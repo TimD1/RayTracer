@@ -20,7 +20,7 @@ public:
 	double operator*(const Vect & B) const 	//dot product
 	{ return x_*B.x_ + y_*B.y_ + z_*B.z_; }
 	Vect operator^(const Vect & B) const	//cross product
-	{ return Vect(y_*B.z_-z_*B.y_, x_*B.z_-z_*B.x_, x_*B.y_-y_*B.x_); }
+	{ return Vect(y_*B.z_-z_*B.y_, z_*B.x_-x_*B.z_, x_*B.y_-y_*B.x_); }
 	Vect operator+(const Vect & B) const	//addition
 	{ return Vect(x_+B.x_, y_+B.y_, z_+B.z_); }
 	Vect operator-(const Vect & B) const	//subtraction
@@ -35,7 +35,8 @@ private:
 
 Vect Vect::normalize() const
 {
-	return Vect(x_/magnitude(), y_/magnitude(), z_/magnitude());
+	double mag = magnitude();
+	return Vect(x_ / mag, y_ / mag, z_ / mag);
 }
 
 inline std::ostream & operator<<(std::ostream & out, const Vect & vec)

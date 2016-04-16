@@ -4,3 +4,5 @@ raytracer
 *.bmp
 cversion*
 makefile
+original/
+samples/

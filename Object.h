@@ -10,13 +10,9 @@ class Object
 public:
 	Object() {}
 
-	Color color() const { return Color(0,0,0,0); }
-	double find_intersection(const Ray & ray);
+	virtual Color color() const { return Color(0,0,0,0); }
+	virtual double find_intersection(const Ray & ray) { return 0; }
+	virtual Vect normal(Vect int_pos) { return Vect(0,0,0); }
 };
-
-double Object::find_intersection(const Ray & ray)
-{
-	return 0;
-}
 
 #endif

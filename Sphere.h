@@ -14,9 +14,9 @@ public:
 
 	Vect center() const { return center_; }
 	double radius() const { return radius_; }
-	Color color() const { return color_; }
-	double find_intersection(Ray ray);
-	Vect normal(Vect pt) { return (pt - center_).normalize(); }//divide by radius faster?
+	virtual Color color() const { return color_; }
+	virtual double find_intersection(Ray ray); //why virtual?
+	virtual Vect normal(Vect pt) { return (pt - center_).normalize(); }//divide by radius faster?
 
 private:
 	Vect center_;
@@ -33,7 +33,6 @@ Sphere::Sphere()
 
 double Sphere::find_intersection(Ray ray)
 {
-	double a = 1; //normalized   what?
 	double b = 	(2*(ray.start().x() - center_.x()) * ray.direction().x()) + 
 				(2*(ray.start().y() - center_.y()) * ray.direction().y()) + 
 		 		(2*(ray.start().z() - center_.z()) * ray.direction().z());
@@ -46,11 +45,12 @@ double Sphere::find_intersection(Ray ray)
 	if(discriminant > 0)
 	{
 		//the ray intersects the sphere (on both sides... find the closer one)
+		//using quadratic formula, with a = 1
 		double root1 = ((-1*b - sqrt(discriminant))/2) - 0.000001;
 		if(root1 > 0) { return root1; }
 		else 
 		{ 
-			double root2 = ((-1*b + sqrt(discriminant))/2) - 0.000001;
+			double root2 = ((-1*b + sqrt(discriminant))/2) - 0.000001; // + 0.000001?
 			return root2; 
 		}
 	}
