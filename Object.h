@@ -11,8 +11,8 @@ public:
 	Object() {}
 
 	virtual Color color() const { return Color(0,0,0,0); }
-	virtual double find_intersection(const Ray & ray) { return -2; }
-	virtual Vect normal(Vect int_pos) { return Vect(0,0,0); }
+	virtual double find_intersection(const Ray & ray) const { return -2; }
+	virtual Vect normal(const Vect & int_pos) const { return Vect(0,0,0); }
 };
 
 #endif

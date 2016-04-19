@@ -22,11 +22,11 @@ class Pixel
 {
 public:
 	Pixel() : r(0), g(0), b(0) {}
-	Pixel(int r0, int g0, int b0) : r(r0), g(g0), b(b0) {}
+	Pixel(double r0, double g0, double b0) : r(r0), g(g0), b(b0) {}
 
-	int r;
-	int g;
-	int b;
+	double r;
+	double g;
+	double b;
 };
 
 
@@ -91,8 +91,7 @@ int closest_obj_idx(const vector<double> & intersections)
 	// do most common base cases first to avoid extra operations
 	if(intersections.size() == 0) { return -1; }
 	else if(intersections.size() == 1) { return (intersections[0] > 0) ? 0 : -1; }
-	
-	else
+	else //we have multiple objects
 	{
 		int idx_min = -1;
 		double closest_valid = 10e10;
@@ -113,55 +112,62 @@ int closest_obj_idx(const vector<double> & intersections)
 
 
 Color color_at(	const Vect & int_pos, const Vect & int_ray_dir, 
-				const vector<Object*> & scene_objects, int idx_closest, 
-				const vector<Source*> & light_sources, double accuracy, 
-				double ambient_light)
+				const vector<Object*> & scene_objects, const int idx_closest, 
+				const vector<Source*> & light_sources, const double accuracy, 
+				const double ambient_light)
 {
-	Color closest_obj_color = scene_objects[idx_closest]->color();
-	Vect closest_obj_normal = scene_objects[idx_closest]->normal(int_pos);
-	Color final_color = closest_obj_color * ambient_light;
+	//object surface begins with this color
+	Color obj_color = scene_objects[idx_closest]->color();
+	Vect obj_normal = scene_objects[idx_closest]->normal(int_pos);
+	Color final_color = obj_color * ambient_light;
 
+	//apply changes to color for each light source
 	for(int light_idx = 0; light_idx < light_sources.size(); light_idx++)
 	{
-		Vect light_dir = (light_sources[light_idx]->light_pos() - int_pos).normalize();
+		Vect light_dir = (int_pos - light_sources[light_idx]->light_pos()).normalize();
 
-		float cos_angle = closest_obj_normal * light_dir;
-		if(cos_angle > 0)
+		float cos_angle = obj_normal * light_dir;
+		if(cos_angle > 0) //light can directly hit object
 		{
 			//test for shadows
 			bool shadowed = false;
-			//removed normalization from dist_to_light
-			Vect dist_to_light = light_sources[light_idx]->light_pos() - int_pos;
-			float mag_dist_to_light = dist_to_light.magnitude();
+			float dist_to_light = 
+					(int_pos - light_sources[light_idx]->light_pos()).magnitude();
 			
+			//draw ray directly to light source
 			Ray shadow_ray(int_pos, 
 					(light_sources[light_idx]->light_pos() - int_pos).normalize());
-
 			
-			vector<double> secondary_ints;
-			for(int obj_idx = 0; obj_idx < scene_objects.size() && !shadowed; obj_idx++)
+			//test to see what objects the shadow ray intersects
+			vector<double> shadow_ints;
+			for(int obj_idx = 0; obj_idx < scene_objects.size(); obj_idx++)
 			{
-				secondary_ints.push_back(scene_objects[obj_idx]
+				shadow_ints.push_back(scene_objects[obj_idx]
 						->find_intersection(shadow_ray));
 			}
 			
-			for(int i = 0; i < secondary_ints.size(); i++)
+			//if the ray intersects something before the light, the point is in shadow
+			for(int i = 0; i < shadow_ints.size(); i++)
 			{
-				if(secondary_ints[i] > accuracy)
+				if(shadow_ints[i] > accuracy)
 				{
-					if(secondary_ints[i] <= mag_dist_to_light) shadowed = true;
+					if(shadow_ints[i] <= dist_to_light) shadowed = true;
 					break;
 				}
 			}
+
+			//if the object was not in shadow, adjust color accordingly
 			if(!shadowed)
 			{
-				final_color = final_color + (closest_obj_color * (light_sources[light_idx]->color() * cos_angle));
-				if(closest_obj_color.s() > 0 && closest_obj_color.s() <= 1)
+				final_color = final_color + 
+					(obj_color * (light_sources[light_idx]->color() * cos_angle));
+				
+				//if the object is shiny
+				if(obj_color.s() > 0 && obj_color.s() <= 1)
 				{
-					//this range of values refers to shininess
-					// fix this mess later
-					double dot1 = closest_obj_normal * (int_ray_dir.invert());
-					Vect scalar1 = closest_obj_normal * dot1;
+					//perform operations to simulate "shininess"
+					double dot1 = obj_normal * (int_ray_dir.invert());
+					Vect scalar1 = obj_normal * dot1;
 					Vect add1 = scalar1 + int_ray_dir;
 					Vect scalar2 = add1 * 2;
 					Vect add2 = int_ray_dir.invert() + scalar2;
@@ -173,10 +179,11 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 						specular = pow(specular, 10);
 						final_color = final_color + 
 							(light_sources[light_idx]->color() * 
-							 (specular * closest_obj_color.s()));
+							 (specular * obj_color.s()));
 					}
 				}	
 			}
+			else cout << "Shadow" << endl;
 		}
 	}
 	return final_color.clip();
@@ -270,21 +277,25 @@ int main()
 			Ray cam_ray(cam_ray_start, cam_ray_dir);
 			
 
-			//closest intersection pt for each object
+			// find the closest intersection pt for each object
 			vector<double> intersections;
 			for(int i = 0; i < scene_objects.size(); i++)
 			{
 				intersections.push_back(scene_objects[i]->find_intersection(cam_ray));
-				//cout << "Object #" << i << ": " << scene_objects[i]->find_intersection(cam_ray) << endl;
+				/* if(i == 0) cout << "Sphere: "; */
+				/* if(i == 1) cout << "Plane: "; */
+				/* cout << scene_objects[i]->find_intersection(cam_ray); */
+				/* cout << " (" << x << ", " << y << ")" << endl; */
 			}
-			//cout << endl;
 			
-			//determine which intersected object is closest to the camera
+			//determine which of those is the overall closest point
 			int idx_closest = closest_obj_idx(intersections);
-			
+			/* cout << idx_closest << endl << endl; */
+
 			// determine the color of each pixel
 			int idx = y * width + x;
 			
+			//the ray never actually hit an object
 			if(idx_closest < 0)
 			{
 				pixels[idx].r = 0;
@@ -294,26 +305,25 @@ int main()
 			else
 			{
 				
-				Color this_color = scene_objects[idx_closest]->color();
-				pixels[idx].r = this_color.r();
-				pixels[idx].g = this_color.g();
-				pixels[idx].b = this_color.b();
+				/* Color this_color = scene_objects[idx_closest]->color(); */
+				/* pixels[idx].r = this_color.r(); */
+				/* pixels[idx].g = this_color.g(); */
+				/* pixels[idx].b = this_color.b(); */
 
-				/*
+				
 				if(intersections[idx_closest] > accuracy)
 				{
 					//determine position/direction at intersection
 					Vect int_pos = cam_ray_start + 
 						(cam_ray_dir * intersections[idx_closest]);
 					Vect int_ray_dir = cam_ray_dir; //not dealing with reflections yet
-					Color int_color = color_at(int_pos, int_ray_dir, scene_objects,
+					Color int_color;
+					int_color = color_at(int_pos, int_ray_dir, scene_objects,
 						idx_closest, light_sources, accuracy, ambient_light);
-
 					pixels[idx].r = int_color.r();
 					pixels[idx].g = int_color.g();
 					pixels[idx].b = int_color.b();
 				}
-				*/
 			}
 		}
 	}

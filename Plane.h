@@ -12,11 +12,11 @@ public:
 	Plane(Vect normal0, double d, Color color0) 
 		: normal_(normal0), distance_(d), color_(color0) {}
 
-	Vect normal() const { return normal_; }			//orientation
-	double distance() const { return distance_; }	//absolute position from origin
-	virtual Vect normal(Vect pt) const { return normal_; } 	//unnecessary?
+	virtual Vect normal_plane() const { return normal_; }			//orientation
+	virtual double distance() const { return distance_; }	//absolute position from origin
+	virtual Vect normal(const Vect & pt) const { return normal_; } 	//unnecessary?
 	virtual Color color() const { return color_; }
-	virtual double find_intersection(const Ray & ray); //dist from camera along ray vec
+	virtual double find_intersection(const Ray & ray) const; //dist from camera along ray vec
 
 private:
 	Vect normal_;
@@ -31,35 +31,20 @@ Plane::Plane()
 	color_ = Color(0.5,0.5,0.5,0);
 }
 
-double Plane::find_intersection(const Ray & ray)
+double Plane::find_intersection(const Ray & ray) const
 {
-	
-	// find vector pointing directly from the plane to the origin
-	Vect plane_to_origin( (normal_* distance_).invert() );
+	// find vector from ray's start to point on plane "above" (closest to) origin
+	Vect ray_to_plane = ray.start().invert() + (normal_ * distance_);
 
-	// add position vector for where the ray starts
-	// the result is a vector of the distance from ray to plane
-	Vect plane_to_ray( plane_to_origin + ray.start() );
+	// find orthogonal distance to plane 
+	double ortho_dist = normal_ * ray_to_plane;
 
-	// dist away relative to plane's orientation
-	double dist_away = -(normal_ * plane_to_ray);
+	// find orthogonal distance ray travels per unit movement
+	double frac_ortho = normal_ * ray.direction();
+	if (frac_ortho == 0) return -1; // travels parallel to plane, won't intersect
 
-	// find how quickly ray travels in direction of plane's normal vector
-	double velocity = ray.direction() * normal_;
-	if(velocity == 0) return -1; // path is parallel to plane, will never intersect
-
-	// it's really distance (not time) but this analogy works well
-	double time = dist_away / velocity;
-	return time;
-	
-
-	//ORIGINAL CODE
-	/*
-	double b = normal_ * ( ray.start() + ((normal_ * distance_).invert()));
-	double a = ray.direction() * normal_;
-	if(a==0) return -1;
-	return -1*b/a;
-	*/	
+	// return total distance travelled
+	return ortho_dist / frac_ortho;
 }
 
 #endif

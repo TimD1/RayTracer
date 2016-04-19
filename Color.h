@@ -1,11 +1,14 @@
 #ifndef _COLOR_H_
 #define _COLOR_H_
 
+#include <ostream>
+
 class Color
 {
 public:
 	Color() : Color(0.5,0.5,0.5,0) {}
-	Color(double r0, double g0, double b0, double s0) 
+	Color(const Color & x);
+	Color(double r0, double g0, double b0, double s0)
 		: red_(r0), blue_(b0), green_(g0), special_(s0) {}
 	
 	double r() const { return red_; }
@@ -23,14 +26,40 @@ public:
 	
 	Color operator*(double x) { return Color(red_*x, green_*x, blue_*x, special_*x); }
 	Color operator/(double x) { return Color(red_/x, green_/x, blue_/x, special_/x); }
-	Color operator*(Color x)
+	Color operator*(const Color & x)
 		{ return Color(red_*x.r(), green_*x.g(), blue_*x.b(), special_*x.s()); }
-	Color operator+(Color x) 
+	Color operator+(const Color & x) 
 		{ return Color(red_+x.r(), green_+x.g(), blue_+x.b(), special_+x.s()); }
+	Color operator=(const Color & rhs);
+	friend std::ostream & operator<<(std::ostream & out, const Color & color);
 
 private:
 	double red_, green_, blue_, special_;
 };
+
+inline Color::Color(const Color & color)
+{
+	red_ = color.red_;
+	green_ = color.green_;
+	blue_ = color.blue_;
+	special_ = color.special_;
+}
+	
+inline std::ostream & operator<<(std::ostream & out, const Color & color)
+{
+	out << "(" << color.red_ << ", " << color.green_ << ", " << color.blue_
+		<< ", " << color.special_ << ")";
+	return out;
+}
+
+inline Color Color::operator=(const Color & rhs)
+{
+	red_ = rhs.red_;
+	green_ = rhs.green_;
+	blue_ = rhs.blue_;
+	special_ = rhs.special_;
+	return *this;
+}
 
 Color Color::clip()
 {

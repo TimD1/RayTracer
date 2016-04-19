@@ -17,8 +17,8 @@ public:
 	virtual Vect center() const { return center_; }
 	virtual double radius() const { return radius_; }
 	virtual Color color() const { return color_; }
-	virtual double find_intersection(const Ray & ray);
-	virtual Vect normal(Vect pt) { return (pt - center_).normalize(); }//divide by radius faster?
+	virtual double find_intersection(const Ray & ray) const;
+	virtual Vect normal(const Vect & pt) const { return (pt - center_).normalize(); }//divide by radius faster?
 
 private:
 	Vect center_;
@@ -33,7 +33,7 @@ Sphere::Sphere()
 	color_ = Color(0.5,0.5,0.5,0);
 }
 
-double Sphere::find_intersection(const Ray & ray)
+double Sphere::find_intersection(const Ray & ray) const
 {
 	double b = 	(2*(ray.start().x() - center_.x()) * ray.direction().x()) + 
 				(2*(ray.start().y() - center_.y()) * ray.direction().y()) + 
