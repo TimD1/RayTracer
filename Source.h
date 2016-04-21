@@ -8,8 +8,8 @@ class Source
 {
 public:
 	Source() {}
-	virtual Vect light_pos() { return Vect(0,0,0); }
-	virtual Color color() { return Color(1,1,1,0); }
+	virtual Vect light_pos() const { return Vect(0,0,5); }
+	virtual Color color() const { return Color(1,1,1,0); }
 
 private:
 	//nothing yet

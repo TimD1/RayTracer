@@ -41,8 +41,8 @@ double Plane::find_intersection(const Ray & ray) const
 
 	// find orthogonal distance ray travels per unit movement
 	double frac_ortho = normal_ * ray.direction();
-	if (frac_ortho == 0) return -1; // travels parallel to plane, won't intersect
-
+	if (frac_ortho == 0) return -1; // ray never intersects if parallel
+	
 	// return total distance travelled
 	return ortho_dist / frac_ortho;
 }

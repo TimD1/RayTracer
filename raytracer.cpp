@@ -119,21 +119,43 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 	//object surface begins with this color
 	Color obj_color = scene_objects[idx_closest]->color();
 	Vect obj_normal = scene_objects[idx_closest]->normal(int_pos);
+	
+	//check if we want the checkered floor pattern
+	if(obj_color.s() == 2)
+	{
+		int square = floor(int_pos.x()) + floor(int_pos.y()); // assuming it's on the x-y plane
+		if(square % 2)
+		{
+			obj_color.set_red(0);
+			obj_color.set_green(0);
+			obj_color.set_blue(0);
+		}
+		else
+		{
+			obj_color.set_red(1);
+			obj_color.set_green(1);
+			obj_color.set_blue(1);
+		}
+	}
+
 	Color final_color = obj_color * ambient_light;
+
+	//deal with reflections here later
 
 	//apply changes to color for each light source
 	for(int light_idx = 0; light_idx < light_sources.size(); light_idx++)
 	{
 		Vect light_dir = (int_pos - light_sources[light_idx]->light_pos()).normalize();
 
-		float cos_angle = obj_normal * light_dir;
+		double cos_angle = (obj_normal.invert() * light_dir);
 		if(cos_angle > 0) //light can directly hit object
 		{
 			//test for shadows
 			bool shadowed = false;
-			float dist_to_light = 
-					(int_pos - light_sources[light_idx]->light_pos()).magnitude();
 			
+			double dist_to_light = 
+					(int_pos - light_sources[light_idx]->light_pos()).magnitude();
+
 			//draw ray directly to light source
 			Ray shadow_ray(int_pos, 
 					(light_sources[light_idx]->light_pos() - int_pos).normalize());
@@ -149,9 +171,12 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 			//if the ray intersects something before the light, the point is in shadow
 			for(int i = 0; i < shadow_ints.size(); i++)
 			{
-				if(shadow_ints[i] > accuracy)
+				if(shadow_ints[i] > accuracy && shadow_ints[i] <= dist_to_light) 
 				{
-					if(shadow_ints[i] <= dist_to_light) shadowed = true;
+					shadowed = true;
+					/* cout << "Shadowed(" << i << "): "; */
+					/* cout << int_pos << ' ' << int_ray_dir << endl; */
+					/* cout << shadow_ints[i] << " < " << dist_to_light << endl; */
 					break;
 				}
 			}
@@ -182,9 +207,10 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 							 (specular * obj_color.s()));
 					}
 				}	
+			/* cout << "In Light" << endl; */
 			}
-			else cout << "Shadow" << endl;
 		}
+		/* else cout << "Facing Away" << endl; */
 	}
 	return final_color.clip();
 }
@@ -229,7 +255,7 @@ int main()
 	Color red(1, 0, 0, 0);
 
 	//create light source
-	Vect light_position(5, 5, 10);
+	Vect light_position(3, -3, 3);
 	Light light_source(light_position, white_light);
 	vector<Source*> light_sources;
 	light_sources.push_back(dynamic_cast<Source*>(&light_source));
@@ -292,7 +318,6 @@ int main()
 			int idx_closest = closest_obj_idx(intersections);
 			/* cout << idx_closest << endl << endl; */
 
-			// determine the color of each pixel
 			int idx = y * width + x;
 			
 			//the ray never actually hit an object
@@ -325,6 +350,7 @@ int main()
 					pixels[idx].b = int_color.b();
 				}
 			}
+			/* cout << endl; */
 		}
 	}
 
