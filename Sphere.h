@@ -35,6 +35,7 @@ Sphere::Sphere()
 
 double Sphere::find_intersection(const Ray & ray) const
 {
+	// https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
 	double b = 	(2*(ray.start().x() - center_.x()) * ray.direction().x()) + 
 				(2*(ray.start().y() - center_.y()) * ray.direction().y()) + 
 		 		(2*(ray.start().z() - center_.z()) * ray.direction().z());
@@ -52,7 +53,7 @@ double Sphere::find_intersection(const Ray & ray) const
 		if(root1 > 0) { return root1; }
 		else 
 		{ 
-			double root2 = ((-1*b + sqrt(discriminant))/2) - 0.000001; // + 0.000001?
+			double root2 = ((-1*b + sqrt(discriminant))/2) - 0.000001;
 			return root2; 
 		}
 	}

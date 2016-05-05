@@ -6,7 +6,7 @@
 class Color
 {
 public:
-	Color() : Color(0.5,0.5,0.5,0) {}
+	Color() : Color(0.5,0.5,0.5,0) {} //gray is default
 	Color(const Color & x);
 	Color(double r0, double g0, double b0, double s0)
 		: red_(r0), blue_(b0), green_(g0), special_(s0) {}
@@ -65,22 +65,22 @@ Color Color::clip()
 {
 	double all_light = red_ + green_ + blue_;
 	double excess_light = all_light - 3;
+	
+	// check if there is too much light
 	if (excess_light > 0)
 	{
+		// proportionally redistribute excess light
 		red_ = red_ + excess_light * (red_ / all_light);
 		green_ = green_ + excess_light * (green_ / all_light);
 		blue_ = blue_ + excess_light * (blue_ / all_light);
 	}
 	
+	// clip if there's still excess light
 	if(red_ > 1) red_ = 1;
 	if(green_ > 1) green_ = 1;
 	if(blue_ > 1) blue_ = 1;
 	
-	if(red_ < 0) red_ = 0;
-	if(green_ < 0) green_ = 0;
-	if(blue_ < 0) blue_ = 0;
-
-	return Color(red_, green_,blue_, special_);
+	return *this;
 }
 
 #endif

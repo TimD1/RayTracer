@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <ctime>
 
 #include "Vect.h"
 #include "Ray.h"
@@ -13,6 +14,7 @@
 #include "Object.h"
 #include "Plane.h"
 #include "Source.h"
+#include "Triangle.h"
 
 using namespace std;
 
@@ -120,10 +122,21 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 	Color obj_color = scene_objects[idx_closest]->color();
 	Vect obj_normal = scene_objects[idx_closest]->normal(int_pos);
 	
-	//check if we want the checkered floor pattern
-	if(obj_color.s() == 2)
+	// s = [2-3): checkered floor pattern
+	if(obj_color.s() >= 2 && obj_color.s() < 3)
 	{
-		int square = floor(int_pos.x()) + floor(int_pos.y()); // assuming it's on the x-y plane
+		int square;
+		if(obj_color.s() == 2) // create tiles of size 1
+		{
+			square = floor(int_pos.x()+0.0000001) + floor(int_pos.y()+0.0000001) + floor(int_pos.z()+0.0000001);
+		}
+		else // create tiles of size obj_color.s()-2 (s = 2.5 -> tile size 0.5)
+		{
+			square = floor((1 / float(obj_color.s() - 2)) * (int_pos.x()+0.0000001)) + 
+					 floor((1 / float(obj_color.s() - 2)) * (int_pos.y()+0.0000001)) + 
+					 floor((1 / float(obj_color.s() - 2)) * (int_pos.z()+0.0000001));
+		}
+
 		if(square % 2)
 		{
 			obj_color.set_red(0);
@@ -132,15 +145,52 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 		}
 		else
 		{
-			obj_color.set_red(1);
-			obj_color.set_green(1);
-			obj_color.set_blue(1);
+			obj_color.set_red(0.7);
+			obj_color.set_green(0.7);
+			obj_color.set_blue(0.7);
 		}
 	}
 
 	Color final_color = obj_color * ambient_light;
 
-	//deal with reflections here later
+	// s = (0, 1]: add reflectiveness/shininess to object
+	if (obj_color.s() > 0 && obj_color.s() <= 1)
+	{
+		double dot1 = obj_normal * int_ray_dir.invert();
+		Vect scalar1 = obj_normal * dot1;
+		Vect add1 = scalar1 + int_ray_dir;
+		Vect scalar2 = add1 * 2;
+		Vect add2 = int_ray_dir.invert() + scalar2;
+		Vect refl_dir = add2.normalize();
+		
+		Ray refl_ray(int_pos, refl_dir);
+
+		//find first intersection
+		vector<double> refl_intersections;
+
+		for(int refl_idx = 0; refl_idx < scene_objects.size(); refl_idx++)
+		{
+			refl_intersections.push_back(scene_objects[refl_idx]
+					->find_intersection(refl_ray));
+		}
+		int idx_closest_refl = closest_obj_idx(refl_intersections); 
+		if(idx_closest_refl >= 0)
+		{
+			//reflection ray intersects an object
+			if(refl_intersections[idx_closest_refl] > accuracy)
+			{
+				// find position/direction at intersection point
+				Vect refl_int_pos = int_pos + (refl_dir * 
+						refl_intersections[idx_closest_refl]);
+				Vect refl_int_ray_dir = refl_dir;
+
+				Color refl_int_color = color_at(refl_int_pos, refl_int_ray_dir, 
+						scene_objects, idx_closest_refl, light_sources, accuracy, 
+						ambient_light);
+				final_color = final_color + (refl_int_color * obj_color.s());
+			}
+		}
+	}
 
 	//apply changes to color for each light source
 	for(int light_idx = 0; light_idx < light_sources.size(); light_idx++)
@@ -219,11 +269,16 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 int main()
 {
 	cout << "Rendering..." << endl;
+	clock_t start, stop;
+	start = clock();
 
 	//set scaling information for image
 	int dpi = 72;
 	int width = 640;
 	int height = 480;
+	const int aa_depth = 1; // sends (n+1)^2 rays through each pixel for anti-aliasingi
+							//or is it (n+1)^2? double check this later.
+	double aa_threshold = 0.1;
 	double aspectratio = static_cast<double>(width)/static_cast<double>(height);
 	double ambient_light = 0.2;
 	double accuracy = 0.000001;
@@ -250,22 +305,26 @@ int main()
 	//create useful colors
 	Color white_light(1, 1, 1, 0);
 	Color green(0, 1, 0, 0.3);
+	Color mirror(0.8, 0.8, 0.8, 1);
 	Color gray(0.5, 0.5, 0.5, 0);
 	Color black(0, 0, 0, 0);
 	Color red(1, 0, 0, 0);
+	Color checkered(1, 1, 1, 2.7);
 
 	//create light source
-	Vect light_position(3, -3, 3);
+	Vect light_position(10, 0, 5);
 	Light light_source(light_position, white_light);
 	vector<Source*> light_sources;
 	light_sources.push_back(dynamic_cast<Source*>(&light_source));
 
 	//create objects in scene
-	Sphere sphere(origin, 1, green);
-	Plane plane(Z, -1, red);
+	Sphere sphere(origin, 1, mirror);
+	//Sphere sphere2(Vect(4, 0, 1), 2, green);
+	Plane plane(Z, -1, checkered);
 
 	vector<Object*> scene_objects;
 	scene_objects.push_back(dynamic_cast<Object*>(&sphere));
+	//scene_objects.push_back(dynamic_cast<Object*>(&sphere2));
 	scene_objects.push_back(dynamic_cast<Object*>(&plane));
 
 
@@ -275,86 +334,145 @@ int main()
 	{
 		for(int y = 0; y < height; y++)
 		{
-			//start with no anti-aliasing
-
-			//set distances so a ray will go through each pixel
-			if(width > height) //wide rectangular image 
-			{
-				xamt = ((x+0.5) / width) * aspectratio - 
-					((width - height) / static_cast<double>(height)) / 2;
-				yamt = (height-y + 0.5) / height;
-			}
-			else if (height > width) //tall rectangular image
-			{
-				xamt = (x+0.5) / width;
-				yamt = (((height - y) + 0.5) / height) / aspectratio - 
-					((height - width) / static_cast<double>(width)) / 2;
-			}
-			else //square image
-			{
-				xamt = (x + 0.5) / width;
-				yamt = (height - y +0.5) / height;
-			}
-
-			//create a ray through each point
-			Vect cam_ray_start = camera.position();
-			Vect cam_ray_dir = (cam_dir + (cam_right*(xamt-0.5) 
-								+ (cam_down*(yamt - 0.5)))).normalize();
-			Ray cam_ray(cam_ray_start, cam_ray_dir);
-			
-
-			// find the closest intersection pt for each object
-			vector<double> intersections;
-			for(int i = 0; i < scene_objects.size(); i++)
-			{
-				intersections.push_back(scene_objects[i]->find_intersection(cam_ray));
-				/* if(i == 0) cout << "Sphere: "; */
-				/* if(i == 1) cout << "Plane: "; */
-				/* cout << scene_objects[i]->find_intersection(cam_ray); */
-				/* cout << " (" << x << ", " << y << ")" << endl; */
-			}
-			
-			//determine which of those is the overall closest point
-			int idx_closest = closest_obj_idx(intersections);
-			/* cout << idx_closest << endl << endl; */
-
 			int idx = y * width + x;
 			
-			//the ray never actually hit an object
-			if(idx_closest < 0)
-			{
-				pixels[idx].r = 0;
-				pixels[idx].g = 0;
-				pixels[idx].b = 0;
-			}
-			else
-			{
-				
-				/* Color this_color = scene_objects[idx_closest]->color(); */
-				/* pixels[idx].r = this_color.r(); */
-				/* pixels[idx].g = this_color.g(); */
-				/* pixels[idx].b = this_color.b(); */
+			//start with blank pixel
+			//change these to a color later, not doubles.
+			double temp_red[aa_depth * aa_depth];
+			double temp_green[aa_depth * aa_depth];
+			double temp_blue[aa_depth * aa_depth];
 
-				
-				if(intersections[idx_closest] > accuracy)
+			for(int aa_x = 0; aa_x < aa_depth; aa_x++)
+			{
+				for(int aa_y = 0; aa_y < aa_depth; aa_y++)
 				{
-					//determine position/direction at intersection
-					Vect int_pos = cam_ray_start + 
-						(cam_ray_dir * intersections[idx_closest]);
-					Vect int_ray_dir = cam_ray_dir; //not dealing with reflections yet
-					Color int_color;
-					int_color = color_at(int_pos, int_ray_dir, scene_objects,
-						idx_closest, light_sources, accuracy, ambient_light);
-					pixels[idx].r = int_color.r();
-					pixels[idx].g = int_color.g();
-					pixels[idx].b = int_color.b();
-				}
+					int aa_idx = (aa_y * aa_depth) + aa_x;
+					
+					srand(time(0));
+
+					if(aa_depth == 1) // no anti-aliasing
+					{
+						//set distances so a ray will go through each pixel
+						if(width > height) //wide rectangular image 
+						{
+							xamt = ((x+0.5) / width) * aspectratio - 
+								((width - height) / static_cast<double>(height)) / 2;
+							yamt = (height-y + 0.5) / height;
+						}
+						else if (height > width) //tall rectangular image
+						{
+							xamt = (x+0.5) / width;
+							yamt = (((height - y) + 0.5) / height) / aspectratio - 
+								((height - width) / static_cast<double>(width)) / 2;
+						}
+						else //square image
+						{
+							xamt = (x + 0.5) / width;
+							yamt = (height - y +0.5) / height;
+						}
+					}
+					else //use anti-aliasing (should this always have aa_x?)
+					{
+						if(width > height) //wide rectangular image 
+						{
+							xamt = ((x+double(aa_x)/double(aa_depth-1)) / width) * 
+								aspectratio - ((width - height) / 
+								static_cast<double>(height)) / 2;
+							yamt = (height-y + double(aa_x)/double(aa_depth-1)) / height;
+						}
+						else if (height > width) //tall rectangular image
+						{
+							xamt = (x+double(aa_x)/double(aa_depth-1)) / width;
+							yamt = (((height - y) + double(aa_x)/double(aa_depth-1)) / height) / aspectratio - 
+								((height - width) / static_cast<double>(width)) / 2;
+						}
+						else //square image
+						{
+							xamt = (x + double(aa_x)/double(aa_depth-1)) / width;
+							yamt = (height - y + double(aa_x)/double(aa_depth-1)) / height;
+						}
+
+					}
+
+					//create a ray through each point
+					Vect cam_ray_start = camera.position();
+					Vect cam_ray_dir = (cam_dir + (cam_right*(xamt-0.5) 
+										+ (cam_down*(yamt - 0.5)))).normalize();
+					Ray cam_ray(cam_ray_start, cam_ray_dir);
+					
+
+					// find the closest intersection pt for each object
+					vector<double> intersections;
+					for(int i = 0; i < scene_objects.size(); i++)
+					{
+						intersections.push_back(scene_objects[i]->find_intersection(cam_ray));
+						/* if(i == 0) cout << "Sphere: "; */
+						/* if(i == 1) cout << "Plane: "; */
+						/* cout << scene_objects[i]->find_intersection(cam_ray); */
+						/* cout << " (" << x << ", " << y << ")" << endl; */
+					}
+					
+					//determine which of those is the overall closest point
+					int idx_closest = closest_obj_idx(intersections);
+					/* cout << idx_closest << endl << endl; */
+
+					
+					//the ray never actually hit an object
+					if(idx_closest < 0)
+					{
+						temp_red[aa_idx] = 0;
+						temp_green[aa_idx] = 0;
+						temp_blue[aa_idx] = 0;
+					}
+					else
+					{
+						
+						/* Color this_color = scene_objects[idx_closest]->color(); */
+						/* pixels[idx].r = this_color.r(); */
+						/* pixels[idx].g = this_color.g(); */
+						/* pixels[idx].b = this_color.b(); */
+
+						
+						if(intersections[idx_closest] > accuracy)
+						{
+							//determine position/direction at intersection
+							Vect int_pos = cam_ray_start + 
+								(cam_ray_dir * intersections[idx_closest]);
+							Vect int_ray_dir = cam_ray_dir; //not dealing with reflections yet
+							Color int_color;
+							int_color = color_at(int_pos, int_ray_dir, scene_objects,
+								idx_closest, light_sources, accuracy, ambient_light);
+							temp_red[aa_idx] = int_color.r();
+							temp_green[aa_idx] = int_color.g();
+							temp_blue[aa_idx] = int_color.b();
+
+						}
+					}
+				} //end aa_y
+			} //end aa_x
+
+			// average the pixel color
+			double avg_red = 0;
+			double avg_green = 0;
+			double avg_blue = 0;
+			for(int i = 0; i < aa_depth * aa_depth; i++)
+			{
+				avg_red += temp_red[i] / double(aa_depth * aa_depth);
+				avg_green += temp_green[i] / double(aa_depth * aa_depth);
+				avg_blue += temp_blue[i] / double(aa_depth * aa_depth);
 			}
-			/* cout << endl; */
-		}
-	}
+			pixels[idx].r = avg_red;
+			pixels[idx].g = avg_green;
+			pixels[idx].b = avg_blue;
+
+		} //end y
+	} //end x
 
 	save_bmp("pic.bmp", width, height, dpi, pixels);
+	
+	stop = clock();
+	float time = float(stop - start) / CLOCKS_PER_SEC;
+	cout << "Image rendered in " << time << " seconds." << endl;
 
 	return 0;
 }
