@@ -30,6 +30,7 @@ public:
 		{ return Color(red_*x.r(), green_*x.g(), blue_*x.b(), special_*x.s()); }
 	Color operator+(const Color & x) 
 		{ return Color(red_+x.r(), green_+x.g(), blue_+x.b(), special_+x.s()); }
+	Color operator+=(const Color & rhs);
 	Color operator=(const Color & rhs);
 	friend std::ostream & operator<<(std::ostream & out, const Color & color);
 
@@ -50,6 +51,15 @@ inline std::ostream & operator<<(std::ostream & out, const Color & color)
 	out << "(" << color.red_ << ", " << color.green_ << ", " << color.blue_
 		<< ", " << color.special_ << ")";
 	return out;
+}
+
+inline Color Color::operator+=(const Color & rhs)
+{
+	red_ = red_ + rhs.red_;
+	green_ = green_ + rhs.green_;
+	blue_ = blue_ + rhs.blue_;
+	special_ = special_ + rhs.special_;
+	return *this;
 }
 
 inline Color Color::operator=(const Color & rhs)
