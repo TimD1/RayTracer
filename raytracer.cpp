@@ -130,7 +130,7 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 		{
 			square = floor(int_pos.x()+0.0000001) + floor(int_pos.y()+0.0000001) + floor(int_pos.z()+0.0000001);
 		}
-		else // create tiles of size obj_color.s()-2 (s = 2.5 -> tile size 0.5)
+		else // create tiles of size obj_color.s()-2 (s = 2.25 -> tile size 0.25)
 		{
 			square = floor((1 / float(obj_color.s() - 2)) * (int_pos.x()+0.0000001)) + 
 					 floor((1 / float(obj_color.s() - 2)) * (int_pos.y()+0.0000001)) + 
@@ -156,13 +156,14 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 	// s = (0, 1]: add reflectiveness/shininess to object
 	if (obj_color.s() > 0 && obj_color.s() <= 1)
 	{
-		double dot1 = obj_normal * int_ray_dir.invert();
-		Vect scalar1 = obj_normal * dot1;
-		Vect add1 = scalar1 + int_ray_dir;
-		Vect scalar2 = add1 * 2;
-		Vect add2 = int_ray_dir.invert() + scalar2;
-		Vect refl_dir = add2.normalize();
+		// find projection of intersecting ray onto normal vector
+		// aka, the distance the ray is from the plane/surface before/after rebounding
+		Vect dist_ortho_to_plane = obj_normal * (obj_normal * int_ray_dir.invert());
 		
+		// if ray hadn't reflected, it would be dist_ortho_to_plane on the other side of the plane
+		// just follow the original ray's path, and correct dist_ortho_to_plane since it bounced back
+		Vect refl_dir = (int_ray_dir + dist_ortho_to_plane * 2).normalize();
+
 		Ray refl_ray(int_pos, refl_dir);
 
 		//find first intersection
@@ -237,18 +238,15 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 				final_color = final_color + 
 					(obj_color * (light_sources[light_idx]->color() * cos_angle));
 				
-				//if the object is shiny
+				//if the object is reflective
 				if(obj_color.s() > 0 && obj_color.s() <= 1)
 				{
-					//perform operations to simulate "shininess"
-					double dot1 = obj_normal * (int_ray_dir.invert());
-					Vect scalar1 = obj_normal * dot1;
-					Vect add1 = scalar1 + int_ray_dir;
-					Vect scalar2 = add1 * 2;
-					Vect add2 = int_ray_dir.invert() + scalar2;
-					Vect refl_dir = add2.normalize();
-
+					//exponentially increase intensity if reflection is of light source
+					Vect dist_ortho_to_plane = obj_normal * 
+						(obj_normal * int_ray_dir.invert());
+					Vect refl_dir = (int_ray_dir + dist_ortho_to_plane * 2).normalize();
 					double specular = refl_dir * light_dir;
+					
 					if(specular > 0)
 					{
 						specular = pow(specular, 10);
@@ -276,10 +274,9 @@ int main()
 	int dpi = 72;
 	int width = 640;
 	int height = 480;
-	const int aa_depth = 1; // sends (n+1)^2 rays through each pixel for anti-aliasingi
-							//or is it (n+1)^2? double check this later.
+	const int aa_depth = 4;
+	int rays_per_pixel = aa_depth * aa_depth;
 	double aa_threshold = 0.1;
-	double aspectratio = static_cast<double>(width)/static_cast<double>(height);
 	double ambient_light = 0.2;
 	double accuracy = 0.000001;
 	int num_pixels = width*height;
@@ -294,11 +291,10 @@ int main()
 	//set direction of camera
 	Vect cam_pos(0,-8, 2);
 	Vect lookat(0, 0, 0);
-	Vect cam_dir(lookat.x()-cam_pos.x(), lookat.y()-cam_pos.y(), lookat.z()-cam_pos.z());
-	cam_dir = cam_dir.normalize();
+	Vect cam_dir( (lookat - cam_pos).normalize() );
 	
 	//set orientation of camera, create object
-	Vect cam_right = (cam_dir^Z).normalize(); //switched order
+	Vect cam_right = (cam_dir^Z).normalize();
 	Vect cam_down = (cam_dir^cam_right);
 	Camera camera(cam_pos, cam_dir, cam_right, cam_down);
 
@@ -309,7 +305,7 @@ int main()
 	Color gray(0.5, 0.5, 0.5, 0);
 	Color black(0, 0, 0, 0);
 	Color red(1, 0, 0, 0);
-	Color checkered(1, 1, 1, 2.7);
+	Color checkered(1, 1, 1, 2);
 
 	//create light source
 	Vect light_position(10, 0, 5);
@@ -319,12 +315,12 @@ int main()
 
 	//create objects in scene
 	Sphere sphere(origin, 1, mirror);
-	//Sphere sphere2(Vect(4, 0, 1), 2, green);
+	Sphere sphere2(Vect(2, 4, 1), 2, green);
 	Plane plane(Z, -1, checkered);
 
 	vector<Object*> scene_objects;
 	scene_objects.push_back(dynamic_cast<Object*>(&sphere));
-	//scene_objects.push_back(dynamic_cast<Object*>(&sphere2));
+	scene_objects.push_back(dynamic_cast<Object*>(&sphere2));
 	scene_objects.push_back(dynamic_cast<Object*>(&plane));
 
 
@@ -337,10 +333,7 @@ int main()
 			int idx = y * width + x;
 			
 			//start with blank pixel
-			//change these to a color later, not doubles.
-			double temp_red[aa_depth * aa_depth];
-			double temp_green[aa_depth * aa_depth];
-			double temp_blue[aa_depth * aa_depth];
+			Color pixel_color(0,0,0,0);
 
 			for(int aa_x = 0; aa_x < aa_depth; aa_x++)
 			{
@@ -352,46 +345,48 @@ int main()
 
 					if(aa_depth == 1) // no anti-aliasing
 					{
-						//set distances so a ray will go through each pixel
-						if(width > height) //wide rectangular image 
+						// send a ray through each pixel
+						if(width > height)
 						{
-							xamt = ((x+0.5) / width) * aspectratio - 
-								((width - height) / static_cast<double>(height)) / 2;
+							//avoid stretching
+							xamt = ((x+0.5) / height) - 
+								//shift camera view left to accomodate larger width
+								(width - height) / double(height*2);
 							yamt = (height-y + 0.5) / height;
 						}
-						else if (height > width) //tall rectangular image
+						else if (height > width)
 						{
 							xamt = (x+0.5) / width;
-							yamt = (((height - y) + 0.5) / height) / aspectratio - 
-								((height - width) / static_cast<double>(width)) / 2;
+							//avoid stretching
+							yamt = (((height - y) + 0.5) / width) - 
+								//shift camera view up to accomodate larger height
+								(height - width) / double(width*2);
 						}
 						else //square image
 						{
-							xamt = (x + 0.5) / width;
-							yamt = (height - y +0.5) / height;
+							xamt = (x + 0.5) / double(width);
+							yamt = (height - y + 0.5) / double(height);
 						}
 					}
-					else //use anti-aliasing (should this always have aa_x?)
+					else //use anti-aliasing
 					{
 						if(width > height) //wide rectangular image 
 						{
-							xamt = ((x+double(aa_x)/double(aa_depth-1)) / width) * 
-								aspectratio - ((width - height) / 
-								static_cast<double>(height)) / 2;
-							yamt = (height-y + double(aa_x)/double(aa_depth-1)) / height;
+							xamt = ((x+double(aa_x)/double(aa_depth-1)) / height) -
+								(width - height) / double(height*2);
+							yamt = (height-y + double(aa_y)/double(aa_depth-1)) / height;
 						}
 						else if (height > width) //tall rectangular image
 						{
 							xamt = (x+double(aa_x)/double(aa_depth-1)) / width;
-							yamt = (((height - y) + double(aa_x)/double(aa_depth-1)) / height) / aspectratio - 
-								((height - width) / static_cast<double>(width)) / 2;
+							yamt = ((height - y) + double(aa_y)/double(aa_depth-1)) / 
+									width - (height - width) / double(width*2);
 						}
 						else //square image
 						{
 							xamt = (x + double(aa_x)/double(aa_depth-1)) / width;
-							yamt = (height - y + double(aa_x)/double(aa_depth-1)) / height;
+							yamt = (height-y + double(aa_y)/double(aa_depth-1)) / height;
 						}
-
 					}
 
 					//create a ray through each point
@@ -405,7 +400,8 @@ int main()
 					vector<double> intersections;
 					for(int i = 0; i < scene_objects.size(); i++)
 					{
-						intersections.push_back(scene_objects[i]->find_intersection(cam_ray));
+						intersections.push_back(scene_objects[i]->
+								find_intersection(cam_ray));
 						/* if(i == 0) cout << "Sphere: "; */
 						/* if(i == 1) cout << "Plane: "; */
 						/* cout << scene_objects[i]->find_intersection(cam_ray); */
@@ -420,19 +416,10 @@ int main()
 					//the ray never actually hit an object
 					if(idx_closest < 0)
 					{
-						temp_red[aa_idx] = 0;
-						temp_green[aa_idx] = 0;
-						temp_blue[aa_idx] = 0;
+						// add nothing to our total color for this pixel
 					}
 					else
 					{
-						
-						/* Color this_color = scene_objects[idx_closest]->color(); */
-						/* pixels[idx].r = this_color.r(); */
-						/* pixels[idx].g = this_color.g(); */
-						/* pixels[idx].b = this_color.b(); */
-
-						
 						if(intersections[idx_closest] > accuracy)
 						{
 							//determine position/direction at intersection
@@ -442,29 +429,15 @@ int main()
 							Color int_color;
 							int_color = color_at(int_pos, int_ray_dir, scene_objects,
 								idx_closest, light_sources, accuracy, ambient_light);
-							temp_red[aa_idx] = int_color.r();
-							temp_green[aa_idx] = int_color.g();
-							temp_blue[aa_idx] = int_color.b();
-
+							pixel_color += (int_color / rays_per_pixel);
 						}
 					}
 				} //end aa_y
 			} //end aa_x
-
-			// average the pixel color
-			double avg_red = 0;
-			double avg_green = 0;
-			double avg_blue = 0;
-			for(int i = 0; i < aa_depth * aa_depth; i++)
-			{
-				avg_red += temp_red[i] / double(aa_depth * aa_depth);
-				avg_green += temp_green[i] / double(aa_depth * aa_depth);
-				avg_blue += temp_blue[i] / double(aa_depth * aa_depth);
-			}
-			pixels[idx].r = avg_red;
-			pixels[idx].g = avg_green;
-			pixels[idx].b = avg_blue;
-
+			
+			pixels[idx].r = pixel_color.r();
+			pixels[idx].g = pixel_color.g();
+			pixels[idx].b = pixel_color.b();
 		} //end y
 	} //end x
 
