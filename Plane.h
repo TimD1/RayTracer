@@ -12,11 +12,11 @@ public:
 	Plane(Vect normal0, double d, Color color0) 
 		: normal_(normal0), distance_(d), color_(color0) {}
 
-	virtual Vect normal_plane() const { return normal_; }			//orientation
-	virtual double distance() const { return distance_; }	//absolute position from origin
-	virtual Vect normal(const Vect & pt) const { return normal_; } 	//unnecessary?
+	virtual Vect normal_plane() const { return normal_; }	//orientation
+	virtual double distance() const { return distance_; }	//shortest dist to origin
+	virtual Vect normal(const Vect & pt) const { return normal_; }
 	virtual Color color() const { return color_; }
-	virtual double find_intersection(const Ray & ray) const; //dist from camera along ray vec
+	virtual double find_intersection(const Ray & ray) const; //dist along ray from camera
 
 private:
 	Vect normal_;

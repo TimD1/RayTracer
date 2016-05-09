@@ -25,13 +25,22 @@ public:
 	{ return Vect(x_+B.x_, y_+B.y_, z_+B.z_); }
 	Vect operator-(const Vect & B) const	//subtraction
 	{ return Vect(x_-B.x_, y_-B.y_, z_-B.z_); }
-	friend inline std::ostream & operator<<(std::ostream & out, const Vect & vec);
 	Vect operator*(const double m) const	//scalar multiplication
 	{ return Vect(x_*m, y_*m, z_*m); }
+	Vect & operator=(const Vect & rhs);
+	friend inline std::ostream & operator<<(std::ostream & out, const Vect & vec);
 
 private:
 	double x_, y_, z_;
 };
+
+Vect & Vect::operator=(const Vect & rhs)
+{
+	x_ = rhs.x();
+	y_ = rhs.y();
+	z_ = rhs.z();
+	return *this;
+}
 
 Vect Vect::normalize() const
 {

@@ -18,6 +18,7 @@
 
 using namespace std;
 
+vector<Object*> scene_objects;
 
 
 class Pixel
@@ -263,6 +264,39 @@ Color color_at(	const Vect & int_pos, const Vect & int_ray_dir,
 	return final_color.clip();
 }
 
+void make_cube(Vect front_bot_left, Vect front_top_left, Vect front_bot_right, Color color)
+{
+	//create temporary vectors to move between vertices
+	Vect up = front_top_left - front_bot_left;
+	Vect right = front_bot_right - front_bot_left;
+	Vect back = ( (up ^ right).normalize() ) * up.magnitude();
+	if(up.magnitude() != right.magnitude()) 
+		{ return; }
+
+	//find the rest of the eight vertices
+	Vect front_top_right = (front_top_left + right);
+	Vect back_bot_left = (front_bot_left + back);
+	Vect back_bot_right = (back_bot_left + right);
+	Vect back_top_left = (back_bot_left + up);
+	Vect back_top_right = (back_bot_right + up);
+	
+	//create each of the six faces of the cube,
+	//making triangles clockwise so normal vectors face out
+	scene_objects.push_back(new Triangle(front_bot_left, front_top_left, front_bot_right, color)); //front face
+	scene_objects.push_back(new Triangle(front_top_left, front_top_right, front_bot_right, color));
+	scene_objects.push_back(new Triangle(back_bot_left, back_bot_right, back_top_right, color)); //back face
+	scene_objects.push_back(new Triangle(back_top_right, back_top_left, back_bot_left, color));
+	scene_objects.push_back(new Triangle(front_top_left, back_top_left, front_top_right, color)); //top face
+	scene_objects.push_back(new Triangle(back_top_left, back_top_right, front_top_right, color));
+	scene_objects.push_back(new Triangle(back_bot_left, front_bot_left, back_bot_right, color)); //bottom face
+	scene_objects.push_back(new Triangle(back_bot_right, front_bot_left, front_bot_right, color));
+	scene_objects.push_back(new Triangle(front_bot_right, front_top_right, back_bot_right, color)); //right face
+	scene_objects.push_back(new Triangle(front_top_right, back_top_right, back_bot_right, color));
+	scene_objects.push_back(new Triangle(back_bot_left, back_top_left, front_bot_left, color)); //left_face
+	scene_objects.push_back(new Triangle(back_top_left, front_top_left, front_bot_left, color));
+}
+
+
 
 int main()
 {
@@ -274,7 +308,7 @@ int main()
 	int dpi = 72;
 	int width = 640;
 	int height = 480;
-	const int aa_depth = 4;
+	const int aa_depth = 3;
 	int rays_per_pixel = aa_depth * aa_depth;
 	double aa_threshold = 0.1;
 	double ambient_light = 0.2;
@@ -289,7 +323,7 @@ int main()
 	Vect origin(0,0,0);
 
 	//set direction of camera
-	Vect cam_pos(0,-8, 2);
+	Vect cam_pos(0,-10,6);
 	Vect lookat(0, 0, 0);
 	Vect cam_dir( (lookat - cam_pos).normalize() );
 	
@@ -300,28 +334,31 @@ int main()
 
 	//create useful colors
 	Color white_light(1, 1, 1, 0);
-	Color green(0, 1, 0, 0.3);
+	Color green(0, 1, 0, 0);
 	Color mirror(0.8, 0.8, 0.8, 1);
 	Color gray(0.5, 0.5, 0.5, 0);
 	Color black(0, 0, 0, 0);
 	Color red(1, 0, 0, 0);
 	Color checkered(1, 1, 1, 2);
+	Color orange(0.94, 0.75, 0.31, 0);
 
 	//create light source
-	Vect light_position(10, 0, 5);
+	Vect light_position(10, -8, 5);
 	Light light_source(light_position, white_light);
 	vector<Source*> light_sources;
 	light_sources.push_back(dynamic_cast<Source*>(&light_source));
 
 	//create objects in scene
-	Sphere sphere(origin, 1, mirror);
-	Sphere sphere2(Vect(2, 4, 1), 2, green);
+	Sphere sphere(Vect(0,0,-.8), 0.2, red);
+	Sphere sphere2(Vect(1, 0, -.8), 0.2, orange);
 	Plane plane(Z, -1, checkered);
+	//Triangle triangle(Vect(-2,0,0), Vect(0,2,0), Vect(0,0,-2), orange);
+	make_cube(Vect(0,0,-1), Vect(0,0,4), Vect(4,3,-1), green);
 
-	vector<Object*> scene_objects;
-	scene_objects.push_back(dynamic_cast<Object*>(&sphere));
-	scene_objects.push_back(dynamic_cast<Object*>(&sphere2));
+	//scene_objects.push_back(dynamic_cast<Object*>(&sphere));
+	//scene_objects.push_back(dynamic_cast<Object*>(&sphere2));
 	scene_objects.push_back(dynamic_cast<Object*>(&plane));
+	//scene_objects.push_back(dynamic_cast<Object*>(&triangle));
 
 
 	double xamt, yamt;
